@@ -1,14 +1,13 @@
 import os
+import json
 import requests
-from crewai import Crew, Agent, Task
-from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 from typing import List
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=os.getenv("GEMINI_API_KEY")
-)
+# Setup Google GenAI Client (mengambil GEMINI_API_KEY dari environment)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 class ContentItem(BaseModel):
     pillar: str = Field(..., description="Educational / Hype / Hard-selling")
@@ -20,36 +19,25 @@ class ContentItem(BaseModel):
 class ContentBatch(BaseModel):
     posts: List[ContentItem]
 
-hunter = Agent(
-    role="Sneaker Trend Hunter",
-    goal="Identifikasi 1 angle sepatu lokal paling juicy minggu ini",
-    backstory="Anak D2C footwear yang paham ritme FYP.",
-    llm=llm,
-    verbose=False
-)
-
-director = Agent(
-    role="D2C Creative Director",
-    goal="Translate insight jadi 3 konsep konten high-converting",
-    backstory="Ex agency creative yang fokus conversion rate.",
-    llm=llm,
-    verbose=False
-)
-
-t1 = Task(
-    description="Riset angle siluet sepatu lokal (contoh: retro runner daily wear/gorpcore).",
-    expected_output="Insight singkat tren",
-    agent=hunter
-)
-
-t2 = Task(
-    description="Buat 3 ide konten TikTok/Reels sesuai schema ContentBatch.",
-    expected_output="JSON valid ContentBatch",
-    agent=director,
-    output_pydantic=ContentBatch
-)
-
-crew = Crew(agents=[hunter, director], tasks=[t1, t2])
+def generate_content_with_gemini(niche: str) -> ContentBatch:
+    prompt = f"""
+    Kamu adalah D2C Footwear Creative Director dan Trend Hunter handal anak scene lokal/Jaksel.
+    Riset 1 siluet/angle sepatu lokal paling juicy minggu ini ({niche}), 
+    lalu buatkan 3 ide konten TikTok/Reels high-converting.
+    """
+    
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ContentBatch,
+            temperature=0.7,
+        ),
+    )
+    # Parse json string ke Pydantic model
+    data = json.loads(response.text)
+    return ContentBatch(**data)
 
 def push_to_google_sheet(batch: ContentBatch):
     webhook_url = os.getenv("GAS_WEBHOOK_URL")
@@ -76,14 +64,13 @@ def push_to_telegram(text: str):
     print("Telegram Sync Response:", response.text)
 
 if __name__ == "__main__":
-    print("🚀 Running Auto-Content Engine...")
-    result = crew.kickoff(inputs={"niche": "sneaker lokal daily wear"})
-    batch = result.pydantic
+    print("🚀 Running Pure Gemini Auto-Content Engine...")
+    batch = generate_content_with_gemini("sneaker lokal daily wear / retro runner / gorpcore")
     
     # 1. Kirim ke Google Sheets via Webhook GAS
     push_to_google_sheet(batch)
     
-    # 2. Notif ringkas ke Telegram yang aman
+    # 2. Notif ringkas ke Telegram
     p1 = batch.posts[0].hook_3s[:30] if len(batch.posts) > 0 else "-"
     p2 = batch.posts.hook_3s[:30] if len(batch.posts) > 1 else "-"
     p3 = batch.posts.hook_3s[:30] if len(batch.posts) > 2 else "-"
