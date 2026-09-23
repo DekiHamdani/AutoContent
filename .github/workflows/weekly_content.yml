@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install crewai langchain-google-genai pydantic requests
+          pip install google-genai pydantic requests
 
       - name: Run Cloud Worker
         env:
@@ -29,4 +29,4 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python cloud_worker.py
-
+        
