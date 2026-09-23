@@ -1,0 +1,32 @@
+name: Weekly Sneaker Content Automation
+
+on:
+  schedule:
+    - cron: '0 1 * * 1' # Tiap Senin jam 01.00 UTC = 08.00 WIB
+  workflow_dispatch: # Biar bisa ditrigger manual lewat tombol "Run workflow" di GitHub
+
+jobs:
+  run-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install crewai langchain-google-genai pydantic requests
+
+      - name: Run Cloud Worker
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GAS_WEBHOOK_URL: ${{ secrets.GAS_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python cloud_worker.py
+
