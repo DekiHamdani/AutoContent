@@ -5,13 +5,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 from typing import List
 
-# Setup LLM pakai Gemini
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=os.getenv("GEMINI_API_KEY")
 )
 
-# Struktur data output yang rapi
 class ContentItem(BaseModel):
     pillar: str = Field(..., description="Educational / Hype / Hard-selling")
     hook_3s: str = Field(..., description="Visual & audio hook 3 detik pertama")
@@ -22,7 +20,6 @@ class ContentItem(BaseModel):
 class ContentBatch(BaseModel):
     posts: List[ContentItem]
 
-# Agent 1: Riset tren
 hunter = Agent(
     role="Sneaker Trend Hunter",
     goal="Identifikasi 1 angle sepatu lokal paling juicy minggu ini",
@@ -31,7 +28,6 @@ hunter = Agent(
     verbose=False
 )
 
-# Agent 2: Pembuat konten
 director = Agent(
     role="D2C Creative Director",
     goal="Translate insight jadi 3 konsep konten high-converting",
@@ -40,7 +36,6 @@ director = Agent(
     verbose=False
 )
 
-# Definisi Tugas
 t1 = Task(
     description="Riset angle siluet sepatu lokal (contoh: retro runner daily wear/gorpcore).",
     expected_output="Insight singkat tren",
@@ -72,23 +67,33 @@ def push_to_telegram(text: str):
         print("⚠️ Telegram token/chat_id belum diset.")
         return
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"})
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown"
+    }
+    response = requests.post(url, json=payload)
+    print("Telegram Sync Response:", response.text)
 
 if __name__ == "__main__":
     print("🚀 Running Auto-Content Engine...")
     result = crew.kickoff(inputs={"niche": "sneaker lokal daily wear"})
     batch = result.pydantic
     
-    # Kirim ke Sheets via Webhook GAS
+    # 1. Kirim ke Google Sheets via Webhook GAS
     push_to_google_sheet(batch)
     
-    # Notif ke Telegram
+    # 2. Notif ringkas ke Telegram yang aman
+    p1 = batch.posts[0].hook_3s[:30] if len(batch.posts) > 0 else "-"
+    p2 = batch.posts.hook_3s[:30] if len(batch.posts) > 1 else "-"
+    p3 = batch.posts.hook_3s[:30] if len(batch.posts) > 2 else "-"
+    
     summary_msg = (
         f"🔥 *3 Konten Baru Masuk Google Sheets!*\n\n"
-        f"1. [{batch.posts[0].pillar}] {batch.posts[0].hook_3s[:40]}...\n"
-        f"2. [{batch.posts[1].pillar}] {batch.posts[1].hook_3s[:40]}...\n"
-        f.format() if False else f"3. [{batch.posts[2].pillar}] {batch.posts[2].hook_3s[:40]}...\n\n"
+        f"1. {p1}...\n"
+        f"2. {p2}...\n"
+        f"3. {p3}...\n\n"
         f"Cek Google Sheet buat full detail!"
     )
     push_to_telegram(summary_msg)
-    print("✅ Selesai disync!")
+    print("✅ Selesai disync ke Telegram & Sheets!")
