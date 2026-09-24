@@ -27,7 +27,7 @@ def generate_content_with_gemini(niche: str) -> ContentBatch:
     """
     
     response = client.models.generate_content(
-        model='gemini-2.5-flash',
+        model='gemini-3.6-flash',
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
@@ -84,4 +84,3 @@ if __name__ == "__main__":
     )
     push_to_telegram(summary_msg)
     print("✅ Selesai disync ke Telegram & Sheets!")
-    
