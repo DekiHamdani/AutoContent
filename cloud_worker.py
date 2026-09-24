@@ -5,7 +5,7 @@ import requests
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Any
 
 # Setup Google GenAI Client (mengambil GEMINI_API_KEY dari environment)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -19,6 +19,19 @@ class ContentItem(BaseModel):
 
 class ContentBatch(BaseModel):
     posts: List[ContentItem]
+
+def get_safe_hook(posts: List[Any], index: int, max_len: int = 30) -> str:
+    try:
+        if not posts or len(posts) <= index:
+            return "-"
+        item = posts[index]
+        if isinstance(item, dict):
+            val = item.get("hook_3s")
+        else:
+            val = getattr(item, "hook_3s", None)
+        return str(val)[:max_len] if val else "-"
+    except Exception:
+        return "-"
 
 def generate_content_with_gemini(niche: str) -> ContentBatch:
     prompt = f"""
@@ -84,10 +97,10 @@ if __name__ == "__main__":
     # 1. Kirim ke Google Sheets via Webhook GAS
     push_to_google_sheet(batch)
     
-    # 2. Notif ringkas ke Telegram
-    p1 = batch.posts[0].hook_3s[:30] if len(batch.posts) > 0 else "-"
-    p2 = batch.posts.hook_3s[:30] if len(batch.posts) > 1 else "-"
-    p3 = batch.posts.hook_3s[:30] if len(batch.posts) > 2 else "-"
+    # 2. Notif ringkas ke Telegram (Aman pakai helper)
+    p1 = get_safe_hook(batch.posts, 0, 30)
+    p2 = get_safe_hook(batch.posts, 1, 30)
+    p3 = get_safe_hook(batch.posts, 2, 30)
     
     summary_msg = (
         f"🔥 *3 Konten Baru Masuk Google Sheets!*\n\n"
@@ -98,4 +111,3 @@ if __name__ == "__main__":
     )
     push_to_telegram(summary_msg)
     print("✅ Selesai disync ke Telegram & Sheets!")
-    
