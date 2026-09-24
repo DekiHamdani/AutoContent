@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import requests
 from google import genai
 from google.genai import types
@@ -26,18 +27,31 @@ def generate_content_with_gemini(niche: str) -> ContentBatch:
     lalu buatkan 3 ide konten TikTok/Reels high-converting.
     """
     
-    response = client.models.generate_content(
-        model='gemini-3.6-flash',
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ContentBatch,
-            temperature=0.7,
-        ),
-    )
-    # Parse json string ke Pydantic model
-    data = json.loads(response.text)
-    return ContentBatch(**data)
+    attempt = 1
+    wait_time = 5  # Mulai dari jeda 5 detik
+    
+    while True:
+        try:
+            print(f"🔄 Mencoba generate konten ke-{attempt}...")
+            response = client.models.generate_content(
+                model='gemini-3.6-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=ContentBatch,
+                    temperature=0.7,
+                ),
+            )
+            data = json.loads(response.text)
+            print("✨ Berhasil generate konten dari Gemini!")
+            return ContentBatch(**data)
+        except Exception as e:
+            print(f"⚠️ Gagal attempt {attempt} (Error: {e})")
+            print(f"⏳ Menunggu {wait_time} detik sebelum coba lagi...")
+            time.sleep(wait_time)
+            attempt += 1
+            # Naikkan jeda perlahan maksimal sampai 30 detik biar aman
+            wait_time = min(wait_time + 5, 30)
 
 def push_to_google_sheet(batch: ContentBatch):
     webhook_url = os.getenv("GAS_WEBHOOK_URL")
@@ -64,7 +78,7 @@ def push_to_telegram(text: str):
     print("Telegram Sync Response:", response.text)
 
 if __name__ == "__main__":
-    print("🚀 Running Pure Gemini Auto-Content Engine...")
+    print("🚀 Running Pure Gemini Auto-Content Engine (Infinite Retry)...")
     batch = generate_content_with_gemini("sneaker lokal daily wear / retro runner / gorpcore")
     
     # 1. Kirim ke Google Sheets via Webhook GAS
@@ -84,3 +98,4 @@ if __name__ == "__main__":
     )
     push_to_telegram(summary_msg)
     print("✅ Selesai disync ke Telegram & Sheets!")
+    
